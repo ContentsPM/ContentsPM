@@ -695,7 +695,8 @@ function saveState() {
   }));
 }
 
-window.addEventListener('online',()=>{state.isOnline=true;showSyncBanner('syncing','Syncing...');processSyncQueue();});
+let appReady = false;
+window.addEventListener('online',()=>{state.isOnline=true;showSyncBanner('syncing','Syncing...');if(appReady)processSyncQueue();});
 window.addEventListener('offline',()=>{state.isOnline=false;showSyncBanner('offline','Offline - saved locally');});
 function showSyncBanner(type,msg){const b=document.getElementById('sync-banner');b.className=type;b.textContent=msg;if(type==='synced')setTimeout(()=>{b.className='';b.textContent='';},3000);}
 function queueWrite(p) {
@@ -1425,7 +1426,7 @@ function formatDuration(ms){const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=M
 function formatHours(h){if(!h)return '0:00';const hrs=Math.floor(h),mins=Math.round((h-hrs)*60);return hrs+':'+String(mins).padStart(2,'0');}
 function calcHours(a,b){return(new Date(b)-new Date(a))/3600000;}
 
-async function init(){loadState();state.syncQueue=[];saveState();await fetchEmployees();await fetchJobs();if(!navigator.onLine)showSyncBanner('offline','Offline - saved locally');}
+async function init(){loadState();state.syncQueue=[];saveState();await fetchEmployees();await fetchJobs();appReady=true;if(!navigator.onLine)showSyncBanner('offline','Offline - saved locally');}
 init();
 
 </script>
