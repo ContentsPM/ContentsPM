@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Contents PM</title>
+<style>
+  :root {
+    /* Core palette — white-dominant, teal + orange */
+    --ink:        #111111;
+    --ink-mid:    #3A3A3A;
+    --ink-soft:   #6A6A6A;
+    --surface:    #FFFFFF;
+    --surface-2:  #F2F7F7;
+    --border:     #D0DCDC;
+    --white:      #FFFFFF;
+
+    /* Header — deep teal, high contrast */
+    --header-bg:  #0D6B6B;
+    --header-2:   #0A5757;
+    --header-text:#FFFFFF;
+    --header-dim: rgba(255,255,255,0.60);
+
+    /* Primary action — teal */
+    --teal:       #0D8080;
+    --teal-dark:  #0A6868;
+    --teal-pale:  #E6F4F4;
+    --teal-text:  #084040;
+
+    /* Accent — orange, punchy in sun and dark */
+    --accent:     #E85D0C;
+    --accent-dark:#C44A08;
+    --accent-pale:#FEF0E6;
+    --accent-text:#7A2D00;
+
+    /* Status */
+    --ok:         #1D7A45;
+    --ok-pale:    #E6F4EC;
+    --warn:       #B85C00;
+    --warn-pale:  #FFF0E0;
+    --danger:     #B52B27;
+    --danger-pale:#FBE9E8;
+    --info:       #0D6B6B;
+    --info-pale:  #E6F4F4;
+
+    --radius:     10px;
+    --radius-sm:  7px;
+    --shadow:     0 1px 6px rgba(0,0,0,0.08);
+    --shadow-md:  0 3px 14px rgba(0,0,0,0.11);
+    --font:       -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { font-size: 16px; }
+  body { font-family: var(--font); background: var(--surface); min-height: 100vh; color: var(--ink); overscroll-behavior: none; }
+
+  /* ── SYNC BANNER ── */
+  #sync-banner { display:none; position:fixed; top:0; left:0; right:0; z-index:1000; padding:9px 16px; font-size:13px; font-weight:600; text-align:center; }
+  #sync-banner.offline { display:block; background:var(--warn); color:white; }
+  #sync-banner.syncing { display:block; background:var(--header-bg); color:var(--header-text); }
+  #sync-banner.synced  { display:block; background:var(--ok); color:white; }
+
+  /* ── SCREENS ── */
+  .screen { display:none; min-height:100vh; flex-direction:column; }
+  .screen.active { display:flex; }
+
+  /* ── APP HEADER ── */
+  .app-header {
+    background: var(--header-bg);
+    color: var(--header-text);
+    padding: 14px 18px;
+    display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .app-header .logo {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 13px; color: white; flex-shrink: 0;
+    letter-spacing: -0.5px;
+  }
+  .app-header .hd-title { font-size: 16px; font-weight: 700; flex: 1; line-height: 1.2; }
+  .app-header .hd-sub   { font-size: 11px; color: var(--header-dim); margin-top: 1px; }
+  .back-btn { background:none; border:none; color:white; font-size:24px; cursor:pointer; padding:4px; line-height:1; opacity:0.8; }
+  .back-btn:active { opacity:1; }
+  .logout-btn { background:none; border:none; color:var(--header-dim); font-size:20px; cursor:pointer; padding:4px; }
+
+  /* ── CONTENT ── */
+  .content { flex:1; padding:16px; background:var(--surface); overflow-y:auto; }
+
+  /* ── PIN SCREEN ── */
+  #screen-pin {
+    background: var(--header-bg);
+    align-items: center; justify-content: center; padding: 40px 24px;
+    min-height: 100vh;
+  }
+  .pin-mark {
+    width: 72px; height: 72px; border-radius: 18px;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 22px; color: white;
+    margin-bottom: 20px;
+    box-shadow: 0 6px 20px rgba(232,130,12,0.35);
+    letter-spacing: -1px;
+  }
+  .pin-title  { color: var(--header-text); font-size: 24px; font-weight: 800; margin-bottom: 4px; }
+  .pin-sub    { color: var(--header-dim); font-size: 14px; margin-bottom: 36px; }
+  .pin-dots   { display:flex; gap:14px; margin-bottom:28px; }
+  .pin-dot    { width:16px; height:16px; border-radius:50%; border:2px solid rgba(240,240,238,0.35); background:transparent; transition:all 0.12s; }
+  .pin-dot.filled { background:var(--accent); border-color:var(--teal); }
+  .pin-error  { color:#FF8F7A; font-size:13px; margin-bottom:14px; min-height:20px; text-align:center; font-weight:600; }
+  .numpad     { display:grid; grid-template-columns:repeat(3,76px); gap:10px; }
+  .num-btn    {
+    width:76px; height:76px; border-radius:50%;
+    border:2px solid rgba(240,240,238,0.15);
+    background:rgba(240,240,238,0.07);
+    color:white; font-size:24px; font-weight:600;
+    cursor:pointer; transition:all 0.1s;
+    display:flex; align-items:center; justify-content:center; flex-direction:column;
+  }
+  .num-btn:active { background:var(--accent); border-color:var(--accent); transform:scale(0.93); }
+  .num-btn .sub   { font-size:8px; opacity:0.55; letter-spacing:1.5px; margin-top:2px; }
+  .num-btn.del    { font-size:20px; border-color:transparent; background:transparent; }
+  .num-btn.empty  { visibility:hidden; }
+
+  /* ── CARDS ── */
+  .card { background:var(--white); border-radius:var(--radius); padding:15px; margin-bottom:12px; box-shadow:var(--shadow); }
+  .card-title {
+    font-size:11px; font-weight:800; color:var(--teal);
+    text-transform:uppercase; letter-spacing:0.8px;
+    margin-bottom:12px; display:flex; align-items:center; gap:7px;
+  }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display:flex; align-items:center; justify-content:center; gap:7px;
+    padding:14px 18px; border-radius:var(--radius); border:none;
+    font-size:15px; font-weight:700; cursor:pointer; width:100%;
+    transition:all 0.12s; text-align:center; font-family:var(--font);
+    letter-spacing:-0.1px;
+  }
+  .btn:active { transform:scale(0.97); }
+  .btn-primary { background:var(--teal); color:white; }
+  .btn-primary:active { background:var(--teal-dark); }
+  .btn-accent  { background:var(--accent); color:white; }
+  .btn-accent:active { background:var(--accent-dark); }
+  .btn-teal    { background:var(--teal); color:white; }
+  .btn-teal:active { background:var(--teal-dark); }
+  .btn-danger  { background:var(--danger); color:white; }
+  .btn-outline { background:transparent; border:2px solid var(--header-bg); color:var(--header-bg); }
+  .btn-ghost   { background:var(--surface-2); color:var(--ink-mid); }
+  .btn-soft    { background:var(--accent-pale); color:var(--accent-text); }
+  .btn-ok      { background:var(--ok-pale); color:var(--ok); border:1.5px solid var(--ok); }
+  .btn-sm      { padding:9px 14px; font-size:13px; border-radius:var(--radius-sm); }
+  .btn-row     { display:flex; gap:8px; }
+  .btn-row .btn { flex:1; }
+
+  /* ── FORM ── */
+  .form-group { margin-bottom:13px; }
+  .form-label { display:block; font-size:11px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:5px; }
+  select, input[type=text], input[type=number], input[type=time], input[type=date], input[type=search], textarea {
+    width:100%; padding:12px 13px;
+    border:1.5px solid var(--border); border-radius:var(--radius-sm);
+    font-size:15px; font-family:var(--font); color:var(--ink);
+    background:white; appearance:none; -webkit-appearance:none; outline:none;
+    transition:border-color 0.12s;
+  }
+  select:focus, input:focus, textarea:focus { border-color:var(--accent); }
+  textarea { resize:none; min-height:76px; }
+
+  /* ── ACTIVITY GRID ── */
+  .activity-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+  .activity-pill {
+    padding:11px 8px; border-radius:var(--radius-sm);
+    border:1.5px solid var(--border); background:white;
+    font-size:13px; font-weight:600; color:var(--ink-mid);
+    text-align:center; cursor:pointer; transition:all 0.12s; line-height:1.3;
+  }
+  .activity-pill.selected { border-color:var(--teal); background:var(--teal); color:white; }
+  .sup-pill { border-color:rgba(240,240,238,0.2); background:rgba(240,240,238,0.1); color:rgba(240,240,238,0.85); }
+  .sup-pill.sup-selected { border-color:var(--accent); background:var(--accent); color:white; }
+
+  /* ── TIMER ── */
+  .timer-display { background:var(--header-bg); border-radius:var(--radius); padding:20px; text-align:center; color:var(--header-text); margin-bottom:12px; }
+  .timer-time { font-size:46px; font-weight:200; letter-spacing:-2px; font-variant-numeric:tabular-nums; margin-bottom:2px; }
+  .timer-label { font-size:12px; color:var(--header-dim); }
+  .timer-job { font-size:15px; font-weight:700; color:var(--accent); margin-top:7px; }
+  .timer-activity { font-size:12px; color:var(--header-dim); margin-top:2px; }
+
+  /* ── SEGMENTS ── */
+  .segment-row { display:flex; align-items:center; padding:10px 0; border-bottom:1px solid var(--surface-2); gap:10px; }
+  .segment-row:last-child { border-bottom:none; }
+  .segment-dot { width:9px; height:9px; border-radius:50%; background:var(--teal); flex-shrink:0; }
+  .segment-info { flex:1; }
+  .segment-job  { font-size:13px; font-weight:700; color:var(--ink); }
+  .segment-meta { font-size:11px; color:var(--ink-soft); margin-top:1px; }
+  .segment-time { font-size:13px; font-weight:700; color:var(--teal); white-space:nowrap; }
+
+  /* ── BADGES ── */
+  .badge { display:inline-flex; align-items:center; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; }
+  .badge-ok     { background:var(--ok-pale); color:var(--ok); }
+  .badge-open   { background:var(--warn-pale); color:var(--warn); }
+  .badge-closed { background:var(--surface-2); color:var(--ink-soft); }
+  .badge-info   { background:var(--info-pale); color:var(--info); }
+
+  /* ── EQUIPMENT TOGGLES ── */
+  .equip-item { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--surface-2); }
+  .equip-item:last-child { border-bottom:none; }
+  .equip-toggle { width:44px; height:26px; border-radius:13px; border:none; background:var(--surface-2); position:relative; cursor:pointer; transition:background 0.18s; flex-shrink:0; }
+  .equip-toggle::after { content:''; position:absolute; width:20px; height:20px; border-radius:50%; background:white; top:3px; left:3px; transition:transform 0.18s; box-shadow:0 1px 3px rgba(0,0,0,0.18); }
+  .equip-toggle.on { background:var(--teal); }
+  .equip-toggle.on::after { transform:translateX(18px); }
+  .equip-name { flex:1; font-size:14px; font-weight:600; color:var(--ink); }
+  .equip-count { display:flex; align-items:center; gap:7px; }
+  .count-btn { width:34px; height:34px; border-radius:50%; border:1.5px solid var(--border); background:white; font-size:20px; color:var(--teal); cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:700; transition:all 0.1s; }
+  .count-btn:active { background:var(--teal); color:white; border-color:var(--teal); }
+  .count-disp { font-size:17px; font-weight:700; color:var(--ink); min-width:26px; text-align:center; }
+
+  /* ── MILESTONES ── */
+  .milestone-row { display:flex; align-items:center; padding:10px 0; border-bottom:1px solid var(--surface-2); gap:10px; }
+  .milestone-row:last-child { border-bottom:none; }
+  .milestone-name { flex:1; font-size:14px; font-weight:600; color:var(--ink); }
+  .milestone-btns { display:flex; gap:5px; }
+  .ms-btn { padding:6px 11px; border-radius:20px; border:1.5px solid var(--border); background:white; font-size:12px; font-weight:700; color:var(--ink-soft); cursor:pointer; transition:all 0.12s; }
+  .ms-btn.sel-prog { border-color:var(--warn); background:var(--warn-pale); color:var(--warn); }
+  .ms-btn.sel-done { border-color:var(--ok); background:var(--ok-pale); color:var(--ok); }
+  .ms-btn.sel-na   { border-color:var(--ink-soft); background:var(--surface-2); color:var(--ink-soft); }
+
+  /* ── SUP JOB CARDS ── */
+  .sup-job-card { background:var(--white); border-radius:var(--radius); padding:15px; margin-bottom:10px; box-shadow:var(--shadow); }
+  .sup-job-header { display:flex; align-items:flex-start; gap:10px; margin-bottom:9px; }
+  .job-info { flex:1; }
+  .sup-job-name { font-size:16px; font-weight:800; color:var(--ink); flex:1; }
+  .sup-job-meta { font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .crew-chips { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:11px; }
+  .crew-chip { background:var(--surface-2); border-radius:20px; padding:3px 9px; font-size:12px; font-weight:600; color:var(--ink-mid); }
+  .crew-chip.active { background:var(--ok-pale); color:var(--ok); }
+  .job-btn-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
+
+  /* ── SUP CLOCK-IN CARD ── */
+  .sup-clockin-card { background:var(--header-bg); border-radius:var(--radius); padding:15px; margin-bottom:12px; color:var(--header-text); }
+  .sup-clockin-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--header-dim); margin-bottom:11px; }
+  .sup-timer-disp { text-align:center; margin-bottom:11px; }
+  .sup-timer-time { font-size:34px; font-weight:200; font-variant-numeric:tabular-nums; color:var(--accent); letter-spacing:-1px; }
+  .sup-timer-meta { font-size:12px; color:var(--header-dim); margin-top:3px; }
+
+  /* ── DATE SELECTOR BAR ── */
+  .date-bar { display:flex; align-items:center; gap:10px; background:var(--teal-pale); border-radius:var(--radius-sm); padding:10px 13px; margin-bottom:14px; border:1.5px solid #9ECECE; }
+  .date-bar label { font-size:12px; font-weight:700; color:var(--teal-text); white-space:nowrap; }
+  .date-bar input { border:none; background:transparent; font-size:14px; font-weight:700; color:var(--teal-text); padding:0; flex:1; }
+  .date-bar input:focus { outline:none; }
+
+  /* ── SEARCH ── */
+  .search-wrap { position:relative; margin-bottom:11px; }
+  .search-wrap input { padding-left:36px; }
+  .search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:15px; color:var(--ink-soft); pointer-events:none; }
+
+  /* ── SECTION HEADER ── */
+  .section-hdr { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:var(--ink-soft); padding:14px 0 7px; }
+  .divider { height:1px; background:var(--surface-2); margin:11px 0; }
+
+  /* ── VEHICLE CARD ── */
+  .vehicle-card { background:var(--surface); border-radius:var(--radius-sm); padding:11px 13px; margin-bottom:9px; border:1.5px solid var(--border); display:flex; align-items:center; gap:10px; }
+  .vehicle-icon { font-size:20px; }
+  .vehicle-info { flex:1; }
+  .vehicle-name { font-size:14px; font-weight:700; color:var(--ink); }
+  .vehicle-odo  { font-size:12px; color:var(--ink-soft); margin-top:1px; }
+
+  /* ── CORRECTION FLAG ── */
+  .correction-flag { background:var(--warn-pale); border:1px solid #F0A84A; border-radius:var(--radius-sm); padding:10px 12px; font-size:13px; color:var(--warn); margin-top:7px; display:flex; gap:8px; align-items:flex-start; }
+
+  /* ── BOTTOM SAFE ── */
+  .bottom-safe { height:28px; }
+
+  /* ── TOAST ── */
+  #toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:var(--ink); color:white; padding:11px 20px; border-radius:24px; font-size:14px; font-weight:600; z-index:2000; transition:transform 0.25s; white-space:nowrap; box-shadow:var(--shadow-md); pointer-events:none; }
+  #toast.show { transform:translateX(-50%) translateY(0); }
+
+  /* ── MODALS ── */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:500; align-items:flex-end; }
+  .modal-overlay.active { display:flex; }
+  .modal-sheet { background:white; border-radius:18px 18px 0 0; padding:22px 18px 36px; width:100%; max-height:88vh; overflow-y:auto; }
+  .modal-handle { width:38px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 18px; }
+  .modal-title { font-size:18px; font-weight:800; color:var(--ink); margin-bottom:15px; }
+</style>
+</head>
+<body>
+<div id="sync-banner"></div>
+<div id="toast"></div>
+
+<!-- PIN SCREEN -->
+<div id="screen-pin" class="screen active">
+  <div class="pin-mark">CPM</div>
+  <div class="pin-title">Contents PM</div>
+  <div class="pin-sub">Enter your PIN to continue</div>
+  <div class="pin-dots">
+    <div class="pin-dot" id="dot-0"></div>
+    <div class="pin-dot" id="dot-1"></div>
+    <div class="pin-dot" id="dot-2"></div>
+    <div class="pin-dot" id="dot-3"></div>
+  </div>
+  <div class="pin-error" id="pin-error"></div>
+  <div class="numpad">
+    <button class="num-btn" onclick="pinInput('1')">1</button>
+    <button class="num-btn" onclick="pinInput('2')">2<div class="sub">ABC</div></button>
+    <button class="num-btn" onclick="pinInput('3')">3<div class="sub">DEF</div></button>
+    <button class="num-btn" onclick="pinInput('4')">4<div class="sub">GHI</div></button>
+    <button class="num-btn" onclick="pinInput('5')">5<div class="sub">JKL</div></button>
+    <button class="num-btn" onclick="pinInput('6')">6<div class="sub">MNO</div></button>
+    <button class="num-btn" onclick="pinInput('7')">7<div class="sub">PQRS</div></button>
+    <button class="num-btn" onclick="pinInput('8')">8<div class="sub">TUV</div></button>
+    <button class="num-btn" onclick="pinInput('9')">9<div class="sub">WXYZ</div></button>
+    <button class="num-btn empty"></button>
+    <button class="num-btn" onclick="pinInput('0')">0</button>
+    <button class="num-btn del" onclick="pinDelete()">&#9003;</button>
+  </div>
+</div>
+
+<!-- TECH SCREEN -->
+<div id="screen-tech" class="screen">
+  <div class="app-header">
+    <div class="logo">T</div>
+    <div><div class="hd-title" id="tech-name-header">Tech</div><div class="hd-sub">Field Technician</div></div>
+    <button class="logout-btn" onclick="logout()" title="Sign out">&#9211;</button>
+  </div>
+  <div class="content">
+    <div id="tech-clockin-panel">
+      <div class="card">
+        <div class="card-title">&#9654; Clock In</div>
+        <div class="form-group"><label class="form-label">Job</label>
+          <select id="tech-job-select"><option value="">Select job...</option></select></div>
+        <div class="form-group"><label class="form-label">Activity</label>
+          <div class="activity-grid" id="tech-activity-grid">
+            <div class="activity-pill" onclick="selectActivity(this,'Packout')">Packout</div>
+            <div class="activity-pill" onclick="selectActivity(this,'Cleaning - Hard Contents')">Cleaning HC</div>
+            <div class="activity-pill" onclick="selectActivity(this,'Cleaning - Textiles')">Cleaning Textiles</div>
+            <div class="activity-pill" onclick="selectActivity(this,'Total Loss/Non-Salvage Inventory')">Total Loss</div>
+            <div class="activity-pill" onclick="selectActivity(this,'Packback')">Packback</div>
+            <div class="activity-pill" onclick="selectActivity(this,'Other')">Other</div>
+          </div>
+        </div>
+        <button class="btn btn-accent" onclick="doClockIn('tech')">&#9654; Clock In</button>
+      </div>
+    </div>
+    <div id="tech-active-panel" style="display:none">
+      <div class="timer-display">
+        <div class="timer-time" id="tech-timer">00:00:00</div>
+        <div class="timer-label">Active session</div>
+        <div class="timer-job" id="tech-active-job">-</div>
+        <div class="timer-activity" id="tech-active-activity">-</div>
+      </div>
+      <div class="btn-row" style="margin-bottom:12px">
+        <button class="btn btn-outline" onclick="showSwitchModal('tech')">&#8644; Switch</button>
+        <button class="btn btn-danger" onclick="doClockOut('tech')">&#9632; Clock Out</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">&#128203; Today's Hours</div>
+      <div id="tech-segments-list"><div style="color:var(--ink-soft);font-size:13px;text-align:center;padding:12px 0">No entries yet today</div></div>
+      <div class="divider"></div>
+      <div style="display:flex;justify-content:space-between;font-weight:700;font-size:15px;">
+        <span>Total today</span><span id="tech-total-hours" style="color:var(--teal)">0:00</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">&#9998; Request Correction</div>
+      <div class="form-group"><textarea id="correction-note" placeholder="Describe what needs to be corrected..."></textarea></div>
+      <button class="btn btn-ghost btn-sm" onclick="sendCorrectionRequest()">Send to Supervisor</button>
+    </div>
+    <div class="bottom-safe"></div>
+  </div>
+</div>
+
+<!-- SUPERVISOR SCREEN -->
+<div id="screen-supervisor" class="screen">
+  <div class="app-header">
+    <div class="logo">S</div>
+    <div><div class="hd-title" id="sup-name-header">Supervisor</div><div class="hd-sub" id="sup-role-header">Supervisor</div></div>
+    <button class="logout-btn" onclick="logout()">&#9211;</button>
+  </div>
+  <div class="content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;">
+      <div style="font-size:15px;font-weight:700;color:var(--ink)" id="sup-date"></div>
+      <button class="btn btn-ghost btn-sm" style="width:auto" onclick="refreshJobs()">&#8635; Refresh</button>
+    </div>
+
+    <!-- Supervisor clock-in -->
+    <div class="sup-clockin-card">
+      <div class="sup-clockin-title">&#9201; Your Time</div>
+      <div id="sup-clockin-panel">
+        <div class="form-group" style="margin-bottom:9px">
+          <select id="sup-job-select" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.35);color:var(--ink)">
+            <option value="">Select job to clock in...</option>
+          </select>
+        </div>
+        <div class="activity-grid" id="sup-activity-grid" style="margin-bottom:9px">
+          <div class="activity-pill sup-pill" onclick="selectSupActivity(this,'Packout')">Packout</div>
+          <div class="activity-pill sup-pill" onclick="selectSupActivity(this,'Cleaning - Hard Contents')">Cleaning HC</div>
+          <div class="activity-pill sup-pill" onclick="selectSupActivity(this,'Cleaning - Textiles')">Cleaning Textiles</div>
+          <div class="activity-pill sup-pill" onclick="selectSupActivity(this,'Total Loss/Non-Salvage Inventory')">Total Loss</div>
+          <div class="activity-pill sup-pill" onclick="selectSupActivity(this,'Packback')">Packback</div>
+          <div class="activity-pill sup-pill" onclick="selectSupActivity(this,'Other')">Other</div>
+        </div>
+        <button class="btn btn-accent btn-sm" onclick="doClockIn('sup')">&#9654; Clock In</button>
+      </div>
+      <div id="sup-active-panel" style="display:none">
+        <div class="sup-timer-disp">
+          <div class="sup-timer-time" id="sup-timer">00:00:00</div>
+          <div class="sup-timer-meta" id="sup-active-meta">-</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-soft btn-sm" onclick="showSwitchModal('sup')">&#8644; Switch</button>
+          <button class="btn btn-danger btn-sm" onclick="doClockOut('sup')">&#9632; Clock Out</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="search-wrap">
+      <span class="search-icon">&#128269;</span>
+      <input type="search" id="job-search" placeholder="Search by last name..." oninput="filterJobs(this.value)">
+    </div>
+
+    <div class="section-hdr">Active Jobs</div>
+    <div id="sup-jobs-list"><div style="color:var(--ink-soft);font-size:13px;text-align:center;padding:20px 0">Loading jobs...</div></div>
+    <div class="bottom-safe"></div>
+  </div>
+</div>
+
+<!-- CLOSEOUT SCREEN -->
+<div id="screen-closeout" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="showScreen('screen-supervisor')">&#8249;</button>
+    <div style="flex:1"><div class="hd-title" id="closeout-job-title">Daily Closeout</div><div class="hd-sub" id="closeout-job-sub"></div></div>
+  </div>
+  <div class="content">
+    <div class="date-bar">
+      <label for="closeout-date">Date</label>
+      <input type="date" id="closeout-date">
+    </div>
+    <div class="card" style="background:var(--warn-pale);border:1.5px solid var(--warn);">
+      <div class="card-title" style="color:var(--warn);">&#9200; After Hours Job</div>
+      <div class="equip-item">
+        <span class="equip-name" style="font-size:13px;">Check if any work was performed after 5 PM or on a weekend / holiday</span>
+        <div>
+          <button class="equip-toggle" id="after-hours-toggle" onclick="toggleAfterHours()"></button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">&#9201; Time Review</div>
+      <div id="closeout-time-entries"></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:9px" onclick="showAddManualTimeModal()">+ Add Manual Entry</button>
+    </div>
+    <div class="card" id="corrections-card" style="display:none">
+      <div class="card-title">&#9888; Correction Requests</div>
+      <div id="corrections-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">&#127937; Milestone Status</div>
+      <div id="milestones-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">&#128295; Equipment Used Today</div>
+      <div id="equipment-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">&#129380; PPE Used</div>
+      <div class="equip-item">
+        <span class="equip-name">Gloves (pairs)</span>
+        <div class="equip-count">
+          <button class="count-btn" onclick="adjustCount('ppe-gloves',-1)">-</button>
+          <span class="count-disp" id="ppe-gloves">0</span>
+          <button class="count-btn" onclick="adjustCount('ppe-gloves',1)">+</button>
+        </div>
+      </div>
+      <div class="equip-item">
+        <span class="equip-name">Masks (each)</span>
+        <div class="equip-count">
+          <button class="count-btn" onclick="adjustCount('ppe-masks',-1)">-</button>
+          <span class="count-disp" id="ppe-masks">0</span>
+          <button class="count-btn" onclick="adjustCount('ppe-masks',1)">+</button>
+        </div>
+      </div>
+      <div class="equip-item">
+        <span class="equip-name">Tyvek Suits (each)</span>
+        <div class="equip-count">
+          <button class="count-btn" onclick="adjustCount('ppe-tyvek',-1)">-</button>
+          <span class="count-disp" id="ppe-tyvek">0</span>
+          <button class="count-btn" onclick="adjustCount('ppe-tyvek',1)">+</button>
+        </div>
+      </div>
+    </div>
+    <div class="card" id="odometer-card">
+      <div class="card-title">&#128663; Vehicle Odometer - End of Day</div>
+      <div id="odometer-end-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">&#128221; Notes</div>
+      <textarea id="closeout-notes" placeholder="Any notes about today's work on this job..."></textarea>
+    </div>
+    <button class="btn btn-accent" style="margin-bottom:8px" onclick="submitCloseout()">&#10003; Submit Closeout</button>
+    <div class="bottom-safe"></div>
+  </div>
+</div>
+
+<!-- MORNING REPORT SCREEN -->
+<div id="screen-morning" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="showScreen('screen-supervisor')">&#8249;</button>
+    <div style="flex:1"><div class="hd-title" id="morning-job-title">Morning Report</div><div class="hd-sub" id="morning-job-sub"></div></div>
+  </div>
+  <div class="content">
+    <div class="date-bar">
+      <label for="morning-date">Date</label>
+      <input type="date" id="morning-date">
+    </div>
+    <div class="card">
+      <div class="card-title">&#128665; Vehicles On Site</div>
+      <div id="morning-vehicles-list"><div style="color:var(--ink-soft);font-size:13px;padding:4px 0">No vehicles added yet</div></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="openModal('modal-morning-vehicle')">+ Add Vehicle</button>
+    </div>
+    <div class="card">
+      <div class="card-title">&#128221; Notes</div>
+      <textarea id="morning-notes" placeholder="Crew on site, site conditions, morning notes..."></textarea>
+    </div>
+    <button class="btn btn-accent" style="margin-bottom:8px" onclick="submitMorningReport()">&#10003; Submit Morning Report</button>
+    <div class="bottom-safe"></div>
+  </div>
+</div>
+
+<!-- VAULT REPORT SCREEN -->
+<div id="screen-vault" class="screen">
+  <div class="app-header">
+    <button class="back-btn" onclick="showScreen('screen-supervisor')">&#8249;</button>
+    <div style="flex:1"><div class="hd-title" id="vault-job-title">Vault Report</div><div class="hd-sub" id="vault-job-sub"></div></div>
+  </div>
+  <div class="content">
+    <div class="card">
+      <div class="card-title">&#128230; Storage</div>
+      <div class="form-group">
+        <label class="form-label">Number of Vaults Loaded</label>
+        <input type="number" id="vault-count" placeholder="0" min="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Initial Storage Months</label>
+        <input type="number" id="vault-initial-months" placeholder="e.g. 3" min="1">
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">&#128221; Notes</div>
+      <textarea id="vault-notes" placeholder="Condition notes, special items..."></textarea>
+    </div>
+    <button class="btn btn-accent" style="margin-bottom:8px" onclick="submitVaultReport()">&#10003; Submit Vault Report</button>
+    <div class="bottom-safe"></div>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-switch">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Switch Job / Activity</div>
+    <div class="form-group"><label class="form-label">Job</label><select id="switch-job-select"></select></div>
+    <div class="form-group"><label class="form-label">Activity</label>
+      <div class="activity-grid" id="switch-activity-grid">
+        <div class="activity-pill" onclick="selectSwitchActivity(this,'Packout')">Packout</div>
+        <div class="activity-pill" onclick="selectSwitchActivity(this,'Cleaning - Hard Contents')">Cleaning HC</div>
+        <div class="activity-pill" onclick="selectSwitchActivity(this,'Cleaning - Textiles')">Cleaning Textiles</div>
+        <div class="activity-pill" onclick="selectSwitchActivity(this,'Total Loss/Non-Salvage Inventory')">Total Loss</div>
+        <div class="activity-pill" onclick="selectSwitchActivity(this,'Packback')">Packback</div>
+        <div class="activity-pill" onclick="selectSwitchActivity(this,'Other')">Other</div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-switch')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmSwitch()">Switch</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-morning-vehicle">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add Vehicle</div>
+    <div class="form-group"><label class="form-label">Vehicle</label>
+      <select id="morning-vehicle-type"><option value="Truck">Truck</option><option value="Van">Van</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Odometer Start (miles)</label>
+      <input type="number" id="morning-vehicle-odo" placeholder="e.g. 45230">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-morning-vehicle')">Cancel</button>
+      <button class="btn btn-accent" onclick="addMorningVehicle()">Add Vehicle</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-manual-time">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add Manual Time Entry</div>
+    <div class="form-group"><label class="form-label">Employee Name</label>
+      <input type="text" id="manual-employee" placeholder="e.g. John Smith (temp)"></div>
+    <div class="form-group"><label class="form-label">Activity</label>
+      <select id="manual-activity">
+        <option>Packout</option><option>Cleaning - Hard Contents</option>
+        <option>Cleaning - Textiles</option><option>Total Loss/Non-Salvage Inventory</option>
+        <option>Packback</option><option>Other</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Clock In</label><input type="time" id="manual-clockin"></div>
+    <div class="form-group"><label class="form-label">Clock Out</label><input type="time" id="manual-clockout"></div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-manual-time')">Cancel</button>
+      <button class="btn btn-accent" onclick="addManualTime()">Add Entry</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const EQUIPMENT_TYPES = [
+  {id:'airScrubber', name:'Air Scrubber',     airFilters:true },
+  {id:'dehum',       name:'Dehumidifier',      airFilters:false},
+  {id:'airMover',    name:'Air Mover',         airFilters:false},
+  {id:'ozone',       name:'Ozone Generator',   airFilters:false},
+  {id:'hepa',        name:'HEPA Vacuum',       airFilters:false},
+  {id:'generator',   name:'Generator',         airFilters:false},
+  {id:'tempLights',  name:'Temporary Lights',  airFilters:false},
+  {id:'dumpster12',  name:'Dumpster 12 yd',    airFilters:false},
+  {id:'dumpster20',  name:'Dumpster 20 yd',    airFilters:false},
+];
+const MILESTONES = [
+  'Packout',
+  'Cleaning — Hard Contents',
+  'Cleaning — Textiles',
+  'Storage',
+  'Packback',
+];
+
+const GROUP_NAMES = {
+  'group_mm4khrb8': 'Intake',
+  'new_group43041':  'Packout',
+  'group_mm4k2ngf':  'Cleaning',
+  'group_mm4kjppx':  'Active Storage',
+  'group_mm4k5gmr':  'Packback',
+  'group_mm4mt98j':  'Reconcile',
+  'group_mm4kwmj6':  'Closed',
+};
+
+const PROXY_URL = 'https://script.google.com/macros/s/AKfycbz_dO6c2ETKmzDd9rvjQ6Ws-mlax_I-GwaCVgtPsdUCzfSVJldMaXwrGB3EyK4eBAozpA/exec';
+
+let state = {
+  currentUser:null, isOnline:navigator.onLine, syncQueue:[],
+  jobs:[], employees:[],
+  techSession:null, supSession:null,
+  techSegments:[], supSegments:[],
+  correctionRequests:[],
+  activeCloseoutJob:null, closeoutData:{},
+  selectedDate: new Date().toISOString().substring(0,10),
+  activeMorningJob:null, morningData:{},
+  activeVaultJob:null, vaultData:{},
+  switchContext:'tech',
+};
+
+function loadState() {
+  try {
+    const p = JSON.parse(localStorage.getItem('bkp_v3')||'{}');
+    if (p.date === new Date().toDateString()) {
+      state.techSegments=p.techSegments||[];
+      state.supSegments=p.supSegments||[];
+      state.techSession=p.techSession||null;
+      state.supSession=p.supSession||null;
+      state.correctionRequests=p.correctionRequests||[];
+      state.closeoutData=p.closeoutData||{};
+      state.morningData=p.morningData||{};
+      state.vaultData=p.vaultData||{};
+      state.syncQueue=p.syncQueue||[];
+    }
+  } catch(e){}
+}
+
+function saveState() {
+  localStorage.setItem('bkp_v3', JSON.stringify({
+    date:new Date().toDateString(),
+    techSegments:state.techSegments, supSegments:state.supSegments,
+    techSession:state.techSession, supSession:state.supSession,
+    correctionRequests:state.correctionRequests,
+    closeoutData:state.closeoutData, morningData:state.morningData,
+    vaultData:state.vaultData, syncQueue:state.syncQueue,
+  }));
+}
+
+window.addEventListener('online',()=>{state.isOnline=true;showSyncBanner('syncing','Syncing...');processSyncQueue();});
+window.addEventListener('offline',()=>{state.isOnline=false;showSyncBanner('offline','Offline - saved locally');});
+function showSyncBanner(type,msg){const b=document.getElementById('sync-banner');b.className=type;b.textContent=msg;if(type==='synced')setTimeout(()=>{b.className='';b.textContent='';},3000);}
+function queueWrite(p) {
+  // Attach rate data to clockout entries so proxy can write to Time Tracking
+  if (p.type === 'clockout' && state.currentUser) {
+    const rates = getCurrentUserRates();
+    p.data = { ...p.data, ...rates };
+  }
+  state.syncQueue.push({ ...p, queuedAt: Date.now() });
+  saveState();
+  if (state.isOnline) processSyncQueue();
+  else showSyncBanner('offline', 'Offline - saved locally');
+}
+
+async function processSyncQueue() {
+  if (!state.syncQueue.length) { showSyncBanner('synced', 'Synced ✓'); return; }
+
+  showSyncBanner('syncing', 'Syncing...');
+  const queue = [...state.syncQueue];
+  const failed = [];
+
+  for (const item of queue) {
+    try {
+      const payload = {
+        source:   'field_app',
+        type:     item.type,
+        data:     item.data     || null,
+        jobId:    item.jobId    || null,
+        jobName:  item.jobName  || null,
+        segments: item.segments || null,
+      };
+
+      // Use JSONP (same as reads) to avoid CORS — Apps Script blocks cross-origin POST
+      const url = PROXY_URL
+        + '?action=write'
+        + '&payload=' + encodeURIComponent(JSON.stringify(payload));
+
+      const result = await jsonpFetch(url);
+
+      if (result && result.error) {
+        console.error('Proxy error for', item.type, ':', result.error);
+        failed.push(item);
+      } else {
+        console.log('Synced:', item.type, result);
+      }
+    } catch(e) {
+      console.error('Sync error for', item.type, ':', e.message);
+      failed.push(item);
+    }
+  }
+
+  state.syncQueue = failed;
+  saveState();
+
+  if (failed.length) {
+    showSyncBanner('offline', failed.length + ' item(s) pending — will retry');
+  } else {
+    showSyncBanner('synced', 'Synced ✓');
+  }
+}
+
+
+function jsonpFetch(url) {
+  return new Promise(function(resolve, reject) {
+    const cbName = 'cb_' + Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
+    const timeout = setTimeout(function() {
+      cleanup();
+      reject(new Error('JSONP timeout'));
+    }, 10000);
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = function(data) {
+      cleanup();
+      resolve(data);
+    };
+    script.src = url + '&callback=' + cbName;
+    script.onerror = function() { cleanup(); reject(new Error('JSONP script error')); };
+    document.head.appendChild(script);
+  });
+}
+
+async function fetchEmployees() {
+  // Disable PIN input while loading
+  const errorEl = document.getElementById('pin-error');
+  const numBtns = document.querySelectorAll('.num-btn');
+  if (errorEl) errorEl.textContent = 'Loading...';
+  numBtns.forEach(b => b.disabled = true);
+  try {
+    const url = PROXY_URL + '?action=fetchEmployees';
+    const data = await jsonpFetch(url);
+    if (data.employees && data.employees.length) {
+      state.employees = data.employees;
+      console.log('Loaded ' + data.employees.length + ' employees from Monday');
+    } else {
+      console.error('fetchEmployees: no data returned, using demo roster');
+      useDemoEmployees();
+    }
+  } catch(e) {
+    console.error('fetchEmployees failed, using demo roster:', e);
+    useDemoEmployees();
+  } finally {
+    if (errorEl) errorEl.textContent = '';
+    numBtns.forEach(b => b.disabled = false);
+  }
+}
+
+// Returns rate data for the current user — used when building clockout payload
+function getCurrentUserRates() {
+  if (!state.currentUser) return {};
+  const emp = state.employees.find(e => e.id === state.currentUser.id);
+  if (!emp) return {};
+  return {
+    hourlyPayRate:  emp.hourlyPayRate  || 0,
+    fullyBurdened:  emp.fullyBurdened  || 0,
+    billableRate:   emp.billableRate   || 0,
+  };
+}
+
+function useDemoEmployees() {
+  // Demo fallback — rates are placeholders only, real rates come from Monday
+  state.employees = [
+    {id:'1',name:'Austin Samsel', pin:'1111',role:'Supervisor',hourlyPayRate:0,fullyBurdened:0,billableRate:0},
+    {id:'2',name:'Todd Johnston',  pin:'2222',role:'Admin',     hourlyPayRate:0,fullyBurdened:0,billableRate:0},
+    {id:'3',name:'Rachel Hodges',  pin:'3333',role:'Admin',     hourlyPayRate:0,fullyBurdened:0,billableRate:0},
+    {id:'4',name:'Luz Moreno',     pin:'4444',role:'Crew',      hourlyPayRate:0,fullyBurdened:0,billableRate:0},
+    {id:'5',name:'Dylan Coughlin', pin:'5555',role:'Crew',      hourlyPayRate:0,fullyBurdened:0,billableRate:0},
+  ];
+}
+
+async function fetchJobs() {
+  try {
+    const url = PROXY_URL + '?action=fetchJobs';
+    const data = await jsonpFetch(url);
+    if (data.jobs && data.jobs.length) {
+      state.jobs = data.jobs;
+      console.log('Loaded ' + data.jobs.length + ' jobs from Monday');
+    } else {
+      console.error('fetchJobs: no data returned, using demo jobs');
+      useDemoJobs();
+    }
+  } catch(e) {
+    console.error('fetchJobs failed, using demo jobs:', e);
+    useDemoJobs();
+  }
+  populateJobDropdowns();
+  if (document.getElementById('screen-supervisor').classList.contains('active')) {
+    renderSupervisorJobs(state.jobs);
+  }
+}
+
+function useDemoJobs() {
+  state.jobs = [
+    {id:'j1',name:'Mintos 373964',icat:'373964',adjuster:'Princess Lowe',carrier:'Universal Property'},
+    {id:'j2',name:'Bladwin 372094',icat:'372094',adjuster:'Sarah Chen',carrier:'Allstate'},
+    {id:'j3',name:'Edwards 370643',icat:'370643',adjuster:'Mike Torres',carrier:'State Farm'},
+    {id:'j4',name:'Carr 368116',icat:'368116',adjuster:'Lisa Park',carrier:'AAA'},
+    {id:'j5',name:'Burnett 357633',icat:'357633',adjuster:'James Hill',carrier:'Travelers'},
+    {id:'j6',name:'Skeffington 369742',icat:'369742',adjuster:'Dana Ross',carrier:'Farmers'},
+    {id:'j7',name:'Lambert 368348',icat:'368348',adjuster:'Tom Wells',carrier:'USAA'},
+  ];
+}
+
+function populateJobDropdowns() {
+  ['tech-job-select','switch-job-select','sup-job-select'].forEach(id=>{
+    const sel=document.getElementById(id);
+    if(!sel)return;
+    const cur=sel.value;
+    sel.innerHTML='<option value="">Select job...</option>';
+    state.jobs.forEach(j=>sel.innerHTML+=`<option value="${j.id}">${j.name}</option>`);
+    if(cur)sel.value=cur;
+  });
+}
+
+// PIN AUTH
+let pinValue='';
+function pinInput(d){if(pinValue.length>=4)return;pinValue+=d;updatePinDots();if(pinValue.length===4)setTimeout(validatePin,150);}
+function pinDelete(){pinValue=pinValue.slice(0,-1);updatePinDots();document.getElementById('pin-error').textContent='';}
+function updatePinDots(){for(let i=0;i<4;i++)document.getElementById('dot-'+i).classList.toggle('filled',i<pinValue.length);}
+
+async function validatePin() {
+  const emp=state.employees.find(e=>e.pin===pinValue);
+  pinValue='';updatePinDots();
+  if(!emp){document.getElementById('pin-error').textContent='Incorrect PIN. Try again.';return;}
+  document.getElementById('pin-error').textContent='';
+  state.currentUser=emp;
+  if(emp.role==='Crew'){
+    document.getElementById('tech-name-header').textContent=emp.name.split(' ')[0];
+    restoreTechState();
+    showScreen('screen-tech');
+  } else {
+    document.getElementById('sup-name-header').textContent=emp.name.split(' ')[0];
+    document.getElementById('sup-role-header').textContent=emp.role;
+    document.getElementById('sup-date').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+    populateJobDropdowns();
+    renderSupervisorJobs(state.jobs);
+    restoreSupState();
+    showScreen('screen-supervisor');
+  }
+}
+function logout(){state.currentUser=null;showScreen('screen-pin');}
+
+// CLOCK IN/OUT (shared)
+let selectedActivity='', selectedSupActivity='';
+let techTimerInt=null, supTimerInt=null;
+
+function selectActivity(el,act){
+  document.querySelectorAll('#tech-activity-grid .activity-pill').forEach(p=>p.classList.remove('selected'));
+  el.classList.add('selected'); selectedActivity=act;
+}
+function selectSupActivity(el,act){
+  document.querySelectorAll('#sup-activity-grid .sup-pill').forEach(p=>{p.style.borderColor='rgba(255,255,255,0.3)';p.style.background='rgba(255,255,255,0.15)';p.style.color='white';});
+  el.style.borderColor='var(--gold)';el.style.background='var(--gold)';el.style.color='var(--teal-dark)';
+  selectedSupActivity=act;
+}
+function selectSwitchActivity(el,act){
+  document.querySelectorAll('#switch-activity-grid .activity-pill').forEach(p=>p.classList.remove('selected'));
+  el.classList.add('selected'); state._switchAct=act;
+}
+
+function doClockIn(ctx){
+  const jobId=document.getElementById(ctx==='sup'?'sup-job-select':'tech-job-select').value;
+  const act=ctx==='sup'?selectedSupActivity:selectedActivity;
+  if(!jobId){showToast('Please select a job');return;}
+  if(!act){showToast('Please select an activity');return;}
+  const job=state.jobs.find(j=>j.id===jobId);
+  const now=new Date();
+  const localDate=now.toLocaleDateString('en-CA');const localTimeStr=now.toTimeString().substring(0,8);const sess={employeeId:state.currentUser.id,employeeName:state.currentUser.name,role:state.currentUser.role,jobId,jobName:job.name,activity:act,clockIn:now.toISOString(),clockInTime:formatTime(now),localDate,localTimeStr};
+  if(ctx==='sup'){
+    state.supSession=sess;
+    document.getElementById('sup-active-meta').textContent=act+' - '+job.name;
+    document.getElementById('sup-clockin-panel').style.display='none';
+    document.getElementById('sup-active-panel').style.display='block';
+    startTimer('sup');
+  } else {
+    state.techSession=sess;
+    document.getElementById('tech-active-job').textContent=job.name;
+    document.getElementById('tech-active-activity').textContent=act;
+    document.getElementById('tech-clockin-panel').style.display='none';
+    document.getElementById('tech-active-panel').style.display='block';
+    startTimer('tech');
+  }
+  saveState();queueWrite({type:'clockin',data:sess});
+  showToast('Clocked in - '+job.name);
+}
+
+function doClockOut(ctx){
+  const sess=ctx==='sup'?state.supSession:state.techSession;
+  if(!sess)return;
+  const now=new Date();
+  const localDateOut=now.toLocaleDateString('en-CA');const localTimeStrOut=now.toTimeString().substring(0,8);const done={...sess,clockOut:now.toISOString(),clockOutTime:formatTime(now),localDateOut,localTimeStrOut};
+  done.hours=calcHours(done.clockIn,done.clockOut);
+  if(ctx==='sup'){
+    state.supSegments.push(done);state.supSession=null;
+    clearInterval(supTimerInt);
+    document.getElementById('sup-active-panel').style.display='none';
+    document.getElementById('sup-clockin-panel').style.display='block';
+  } else {
+    state.techSegments.push(done);state.techSession=null;
+    clearInterval(techTimerInt);
+    document.getElementById('tech-active-panel').style.display='none';
+    document.getElementById('tech-clockin-panel').style.display='block';
+    renderTechSegments();
+  }
+  saveState();queueWrite({type:'clockout',data:done});
+  showToast('Clocked out - '+formatHours(done.hours));
+}
+
+function startTimer(ctx){
+  if(ctx==='sup'){
+    clearInterval(supTimerInt);
+    supTimerInt=setInterval(()=>{if(!state.supSession)return;document.getElementById('sup-timer').textContent=formatDuration(Date.now()-new Date(state.supSession.clockIn).getTime());},1000);
+  } else {
+    clearInterval(techTimerInt);
+    techTimerInt=setInterval(()=>{if(!state.techSession)return;document.getElementById('tech-timer').textContent=formatDuration(Date.now()-new Date(state.techSession.clockIn).getTime());},1000);
+  }
+}
+
+function restoreTechState(){
+  renderTechSegments();
+  if(state.techSession){
+    const job=state.jobs.find(j=>j.id===state.techSession.jobId);
+    document.getElementById('tech-active-job').textContent=job?job.name:state.techSession.jobName;
+    document.getElementById('tech-active-activity').textContent=state.techSession.activity;
+    document.getElementById('tech-clockin-panel').style.display='none';
+    document.getElementById('tech-active-panel').style.display='block';
+    startTimer('tech');
+  }
+}
+function restoreSupState(){
+  if(state.supSession){
+    document.getElementById('sup-active-meta').textContent=state.supSession.activity+' - '+state.supSession.jobName;
+    document.getElementById('sup-clockin-panel').style.display='none';
+    document.getElementById('sup-active-panel').style.display='block';
+    startTimer('sup');
+  }
+}
+
+function renderTechSegments(){
+  const list=document.getElementById('tech-segments-list');
+  if(!state.techSegments.length){list.innerHTML='<div style="color:var(--ink-soft);font-size:13px;text-align:center;padding:12px 0">No entries yet today</div>';document.getElementById('tech-total-hours').textContent='0:00';return;}
+  let total=0;
+  list.innerHTML=state.techSegments.map(s=>{total+=s.hours||0;return '<div class="segment-row"><div class="segment-dot"></div><div class="segment-info"><div class="segment-job">'+s.jobName+'</div><div class="segment-activity">'+s.activity+' - '+s.clockInTime+' to '+(s.clockOutTime||'Active')+'</div></div><div class="segment-time">'+formatHours(s.hours||0)+'</div></div>';}).join('');
+  document.getElementById('tech-total-hours').textContent=formatHours(total);
+}
+
+function sendCorrectionRequest(){
+  const note=document.getElementById('correction-note').value.trim();
+  if(!note){showToast('Please describe what needs correcting');return;}
+  const req={employeeId:state.currentUser.id,employeeName:state.currentUser.name,note,timestamp:new Date().toISOString(),resolved:false};
+  state.correctionRequests.push(req);saveState();queueWrite({type:'correction',data:req});
+  document.getElementById('correction-note').value='';
+  showToast('Sent to supervisor');
+}
+
+// SWITCH MODAL
+function showSwitchModal(ctx){
+  state.switchContext=ctx;state._switchAct='';
+  document.querySelectorAll('#switch-activity-grid .activity-pill').forEach(p=>p.classList.remove('selected'));
+  const sel=document.getElementById('switch-job-select');
+  const sess=ctx==='sup'?state.supSession:state.techSession;
+  if(sess)sel.value=sess.jobId;
+  openModal('modal-switch');
+}
+function confirmSwitch(){
+  const jobId=document.getElementById('switch-job-select').value;
+  const act=state._switchAct;
+  if(!jobId){showToast('Please select a job');return;}
+  if(!act){showToast('Please select an activity');return;}
+  const ctx=state.switchContext;
+  const now=new Date();
+  const sess=ctx==='sup'?state.supSession:state.techSession;
+  if(sess){
+    const localDateOut=now.toLocaleDateString('en-CA');const localTimeStrOut=now.toTimeString().substring(0,8);const done={...sess,clockOut:now.toISOString(),clockOutTime:formatTime(now),localDateOut,localTimeStrOut};
+    done.hours=calcHours(done.clockIn,done.clockOut);
+    if(ctx==='sup')state.supSegments.push(done);else state.techSegments.push(done);
+    queueWrite({type:'clockout',data:done});
+  }
+  const job=state.jobs.find(j=>j.id===jobId);
+  const newSess={employeeId:state.currentUser.id,employeeName:state.currentUser.name,jobId,jobName:job.name,activity:act,clockIn:now.toISOString(),clockInTime:formatTime(now)};
+  if(ctx==='sup'){state.supSession=newSess;document.getElementById('sup-active-meta').textContent=act+' - '+job.name;startTimer('sup');}
+  else{state.techSession=newSess;document.getElementById('tech-active-job').textContent=job.name;document.getElementById('tech-active-activity').textContent=act;renderTechSegments();startTimer('tech');}
+  saveState();queueWrite({type:'clockin',data:newSess});
+  closeModal('modal-switch');showToast('Switched to '+act+' - '+job.name);
+}
+
+// SUPERVISOR JOB LIST
+function renderSupervisorJobs(jobs){
+  const list=document.getElementById('sup-jobs-list');
+  if(!jobs.length){list.innerHTML='<div style="color:var(--ink-soft);font-size:13px;text-align:center;padding:20px 0">No jobs found</div>';return;}
+  const frag = document.createDocumentFragment();
+  jobs.forEach(function(job) {
+    const co = state.closeoutData[job.id];
+    const status = co && co.submitted ? 'closed' : 'open';
+    const allSegs = state.techSegments.concat(state.supSegments);
+    const crew = [...new Set(allSegs.filter(function(s){return s.jobId===job.id;}).map(function(s){return s.employeeName;}))];
+    const card = document.createElement('div');
+    card.className = 'sup-job-card';
+    const crewHtml = crew.length
+      ? crew.map(function(n){return '<span class="crew-chip active">'+n.split(' ')[0]+'</span>';}).join('')
+      : '<span class="crew-chip">No crew logged</span>';
+    card.innerHTML = '<div class="sup-job-header"><div class="job-info"><div class="sup-job-name">'+job.name+'</div><div class="sup-job-meta">'+job.adjuster+' - '+job.carrier+'</div></div><span class="badge badge-'+status+'">'+status+'</span></div><div class="crew-chips">'+crewHtml+'</div><div class="job-btn-row"><button class="btn btn-soft btn-sm mr-btn">Morning</button><button class="btn btn-primary btn-sm co-btn">'+( status==='closed'?'View':'Closeout')+'</button><button class="btn btn-ghost btn-sm vr-btn">Vaults</button></div>';
+    card.querySelector('.co-btn').addEventListener('click', function(){openCloseout(job.id);});
+    card.querySelector('.mr-btn').addEventListener('click', function(){openMorningReport(job.id);});
+    card.querySelector('.vr-btn').addEventListener('click', function(){openVaultReport(job.id);});
+    frag.appendChild(card);
+  });
+  list.innerHTML = '';
+  list.appendChild(frag);
+}
+
+function filterJobs(q){
+  const filtered=q.trim()?state.jobs.filter(j=>j.name.toLowerCase().includes(q.toLowerCase())):state.jobs;
+  renderSupervisorJobs(filtered);
+}
+
+async function refreshJobs(){showToast('Refreshing...');await fetchJobs();document.getElementById('job-search').value='';renderSupervisorJobs(state.jobs);showToast('Jobs updated');}
+
+// CLOSEOUT
+function openCloseout(jobId){
+  const job=state.jobs.find(j=>j.id===jobId);
+  state.activeCloseoutJob=job;
+  if(!state.closeoutData[jobId])state.closeoutData[jobId]={equipment:{},milestones:{},ppeGloves:0,ppeMasks:0,ppeTyvek:0,storageVaults:0,vehicles:[],notes:'',submitted:false,afterHours:false,supBilling:{},milestoneComplete:false};
+  document.getElementById('closeout-date').value=state.selectedDate||new Date().toISOString().substring(0,10);
+  document.getElementById('closeout-job-title').textContent=job.name;
+  document.getElementById('closeout-job-sub').textContent=job.adjuster+' - '+job.carrier;
+  renderCloseoutTimeEntries(jobId);renderCorrectionRequests();renderMilestones(jobId);renderEquipment(jobId);renderOdometer(jobId);renderAfterHoursToggle(jobId);
+  const d=state.closeoutData[jobId];
+  document.getElementById('ppe-gloves').textContent=d.ppeGloves||0;
+  document.getElementById('ppe-masks').textContent=d.ppeMasks||0;
+  document.getElementById('ppe-tyvek').textContent=d.ppeTyvek||0;
+
+  document.getElementById('closeout-notes').value=d.notes||'';
+  showScreen('screen-closeout');
+}
+
+function renderCloseoutTimeEntries(jobId){
+  const all=[...state.techSegments,...state.supSegments].filter(s=>s.jobId===jobId);
+  const list=document.getElementById('closeout-time-entries');
+  if(!all.length){list.innerHTML='<div style="color:var(--ink-soft);font-size:13px;padding:8px 0">No time entries for this job today</div>';return;}
+  const d=state.closeoutData[jobId]||{};
+  if(!d.supBilling)d.supBilling={};
+  const frag=document.createDocumentFragment();
+  all.forEach(function(s,i){
+    const key=s.employeeId+'_'+i;
+    const isSup=!!d.supBilling[key];
+    const row=document.createElement('div');
+    row.className='segment-row';
+    row.style.alignItems='center';
+    const dot=document.createElement('div');dot.className='segment-dot';
+    const info=document.createElement('div');info.className='segment-info';
+    info.innerHTML='<div class="segment-job">'+s.employeeName+'</div><div class="segment-activity">'+s.activity+' — '+s.clockInTime+' to '+(s.clockOutTime||'Active')+'</div>';
+    const hrs=document.createElement('div');hrs.className='segment-time';hrs.textContent=formatHours(s.hours||0);
+    const supWrap=document.createElement('div');supWrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:2px;margin-left:8px;flex-shrink:0;';
+    const supLbl=document.createElement('div');supLbl.style.cssText='font-size:9px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.5px;';supLbl.textContent='Sup';
+    const supBtn=document.createElement('button');
+    supBtn.className='equip-toggle'+(isSup?' on':'');
+    supBtn.dataset.key=key;supBtn.dataset.idx=i;
+    supBtn.addEventListener('click',function(){toggleSupBilling(jobId,key,s);});
+    supWrap.appendChild(supLbl);supWrap.appendChild(supBtn);
+    row.appendChild(dot);row.appendChild(info);row.appendChild(hrs);row.appendChild(supWrap);
+    frag.appendChild(row);
+  });
+  list.innerHTML='';list.appendChild(frag);
+}
+
+function toggleSupBilling(jobId,key,seg){
+  const d=state.closeoutData[jobId];
+  if(!d.supBilling)d.supBilling={};
+  d.supBilling[key]=!d.supBilling[key];
+  saveState();renderCloseoutTimeEntries(jobId);
+}
+
+function toggleAfterHours(){
+  const jobId=state.activeCloseoutJob&&state.activeCloseoutJob.id;
+  if(!jobId)return;
+  const d=state.closeoutData[jobId];
+  d.afterHours=!d.afterHours;
+  saveState();renderAfterHoursToggle(jobId);
+}
+
+function renderAfterHoursToggle(jobId){
+  const d=state.closeoutData[jobId]||{};
+  const btn=document.getElementById('after-hours-toggle');
+  if(!btn)return;
+  if(d.afterHours){btn.classList.add('on');}else{btn.classList.remove('on');}
+}
+
+function renderCorrectionRequests(){
+  const reqs=state.correctionRequests.filter(r=>!r.resolved);
+  const card=document.getElementById('corrections-card');
+  const list=document.getElementById('corrections-list');
+  if(!reqs.length){card.style.display='none';return;}
+  card.style.display='block';
+  list.innerHTML=reqs.map((r,i)=>'<div class="correction-flag" style="margin-bottom:8px"><div style="flex:1"><strong>'+r.employeeName+'</strong><br>'+r.note+'<div style="font-size:11px;margin-top:4px;opacity:0.7">'+new Date(r.timestamp).toLocaleTimeString()+'</div></div><button class="btn btn-ghost btn-sm" style="width:auto;flex-shrink:0" onclick="resolveCorrection('+i+')">Resolve</button></div>').join('');
+}
+
+function resolveCorrection(i){state.correctionRequests[i].resolved=true;saveState();renderCorrectionRequests();showToast('Resolved');}
+
+function renderMilestones(jobId){
+  const d=state.closeoutData[jobId];
+  const job=state.jobs.find(j=>j.id===jobId);
+  const container=document.getElementById('milestones-list');
+  const frag=document.createDocumentFragment();
+
+  // Show current phase from job group
+  const currentPhase = job && job.group ? (GROUP_NAMES[job.group] || 'Unknown') : 'Unknown';
+  const phaseRow=document.createElement('div');
+  phaseRow.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:10px 0;';
+  const phaseLabel=document.createElement('div');
+  phaseLabel.innerHTML='<div style="font-size:13px;color:var(--ink-soft);margin-bottom:2px;">Current phase</div>'
+    +'<div style="font-size:16px;font-weight:500;color:var(--ink);">'+currentPhase+'</div>';
+  const isComplete=!!(d.milestoneComplete);
+  const completeBtn=document.createElement('button');
+  completeBtn.className='btn'+(isComplete?' btn-accent':' btn-ghost')+' btn-sm';
+  completeBtn.style.cssText='width:auto;flex-shrink:0;';
+  completeBtn.textContent=isComplete?'✓ Complete':'Mark Complete';
+  completeBtn.addEventListener('click',function(){
+    d.milestoneComplete=!d.milestoneComplete;
+    saveState();renderMilestones(jobId);
+  });
+  phaseRow.appendChild(phaseLabel);phaseRow.appendChild(completeBtn);
+  frag.appendChild(phaseRow);
+
+  MILESTONES.forEach(function(m){
+    const s=d.milestones[m]||'';
+    const row=document.createElement('div');row.className='milestone-row';
+    const name=document.createElement('div');name.className='milestone-name';name.textContent=m;
+    const btns=document.createElement('div');btns.className='milestone-btns';
+    [['in-progress','In Progress','sel-prog'],['complete','Done','sel-done'],['na','N/A','sel-na']].forEach(function(arr){
+      const btn=document.createElement('button');
+      btn.className='ms-btn'+(s===arr[0]?' '+arr[2]:'');
+      btn.textContent=arr[1];
+      btn.addEventListener('click',function(){setMilestone(jobId,m,arr[0]);});
+      btns.appendChild(btn);
+    });
+    row.appendChild(name);row.appendChild(btns);frag.appendChild(row);
+  });
+  container.innerHTML='';container.appendChild(frag);
+}
+
+function setMilestone(jobId,name,status){
+  const d=state.closeoutData[jobId];
+  d.milestones[name]=d.milestones[name]===status?'':status;
+  saveState();renderMilestones(jobId);
+}
+
+function renderEquipment(jobId){
+  const d=state.closeoutData[jobId];
+  const container=document.getElementById('equipment-list');
+  const frag=document.createDocumentFragment();
+  EQUIPMENT_TYPES.forEach(function(e){
+    const on=d.equipment[e.id]&&d.equipment[e.id].used;
+    const cnt=(d.equipment[e.id]&&d.equipment[e.id].units)||0;
+    const row=document.createElement('div');row.className='equip-item';
+    const toggle=document.createElement('button');toggle.className='equip-toggle'+(on?' on':'');
+    toggle.addEventListener('click',function(){toggleEquip(jobId,e.id);});
+    const name=document.createElement('span');name.className='equip-name';name.textContent=e.name;
+    row.appendChild(toggle);row.appendChild(name);
+    if(on){
+      const cnt_div=document.createElement('div');cnt_div.className='equip-count';
+      const minus=document.createElement('button');minus.className='count-btn';minus.textContent='-';minus.addEventListener('click',function(){adjEquip(jobId,e.id,-1);});
+      const display=document.createElement('span');display.className='count-disp';display.id='ec-'+e.id;display.textContent=cnt;
+      const plus=document.createElement('button');plus.className='count-btn';plus.textContent='+';plus.addEventListener('click',function(){adjEquip(jobId,e.id,1);});
+      cnt_div.appendChild(minus);cnt_div.appendChild(display);cnt_div.appendChild(plus);
+      row.appendChild(cnt_div);
+    }
+    frag.appendChild(row);
+  });
+  container.innerHTML='';container.appendChild(frag);
+}
+
+function toggleEquip(jobId,equipId){
+  const d=state.closeoutData[jobId];
+  if(!d.equipment[equipId])d.equipment[equipId]={used:false,units:0};
+  d.equipment[equipId].used=!d.equipment[equipId].used;
+  if(d.equipment[equipId].used&&d.equipment[equipId].units===0)d.equipment[equipId].units=1;
+  saveState();renderEquipment(jobId);
+}
+
+function adjEquip(jobId,equipId,delta){
+  const d=state.closeoutData[jobId];
+  if(!d.equipment[equipId])return;
+  d.equipment[equipId].units=Math.max(0,(d.equipment[equipId].units||0)+delta);
+  saveState();
+  const el=document.getElementById('ec-'+equipId);
+  if(el)el.textContent=d.equipment[equipId].units;
+}
+
+function renderOdometer(jobId){
+  const d=state.closeoutData[jobId];
+  const vehicles=d.vehicles||[];
+  const list=document.getElementById('odometer-end-list');
+  if(!vehicles.length){list.innerHTML='<div style="color:var(--ink-soft);font-size:13px;padding:4px 0">No vehicles logged in Morning Report for this job</div>';document.getElementById('odometer-card').style.display='none';return;}
+  document.getElementById('odometer-card').style.display='block';
+  list.innerHTML=vehicles.map((v,i)=>'<div class="form-group"><label class="form-label">'+v.type+' - End Odometer (miles)</label><input type="number" id="odo-end-'+i+'" value="'+(v.odoEnd||'')+'" placeholder="Started at '+v.odoStart.toLocaleString()+' mi" onchange="updateOdo('+i+',this.value)"></div>').join('');
+}
+
+function updateOdo(i,val){
+  const jobId=state.activeCloseoutJob&&state.activeCloseoutJob.id;
+  if(state.closeoutData[jobId]&&state.closeoutData[jobId].vehicles)state.closeoutData[jobId].vehicles[i].odoEnd=parseInt(val)||null;
+  saveState();
+}
+
+function adjustCount(id,delta){
+  const el=document.getElementById(id);const cur=parseInt(el.textContent)||0;el.textContent=Math.max(0,cur+delta);
+  const jobId=state.activeCloseoutJob&&state.activeCloseoutJob.id;
+  if(jobId&&state.closeoutData[jobId]){
+    const d=state.closeoutData[jobId];
+    if(id==='ppe-gloves')d.ppeGloves=parseInt(el.textContent);
+    if(id==='ppe-masks')d.ppeMasks=parseInt(el.textContent);
+    if(id==='ppe-tyvek')d.ppeTyvek=parseInt(el.textContent);
+    saveState();
+  }
+}
+
+function showAddManualTimeModal(){document.getElementById('manual-employee').value='';document.getElementById('manual-clockin').value='';document.getElementById('manual-clockout').value='';openModal('modal-manual-time');}
+
+function addManualTime(){
+  const name=document.getElementById('manual-employee').value.trim();
+  const act=document.getElementById('manual-activity').value;
+  const ci=document.getElementById('manual-clockin').value;
+  const co=document.getElementById('manual-clockout').value;
+  if(!name||!ci||!co){showToast('Please fill in all fields');return;}
+  const job=state.activeCloseoutJob;
+  const today=new Date().toDateString();
+  const inT=new Date(today+' '+ci),outT=new Date(today+' '+co);
+  const hours=(outT-inT)/3600000;
+  const entry={employeeId:'manual',employeeName:name,jobId:job.id,jobName:job.name,activity:act,clockIn:inT.toISOString(),clockOut:outT.toISOString(),clockInTime:ci,clockOutTime:co,hours,isManual:true,addedBy:state.currentUser.name};
+  state.techSegments.push(entry);saveState();queueWrite({type:'manual_time',data:entry});
+  closeModal('modal-manual-time');renderCloseoutTimeEntries(job.id);showToast('Added '+formatHours(hours)+' for '+name);
+}
+
+function submitCloseout(){
+  const job=state.activeCloseoutJob;
+  const d=state.closeoutData[job.id];
+  d.storageVaults=0;
+  d.notes=document.getElementById('closeout-notes').value;
+  d.submitted=true;d.submittedAt=new Date().toISOString();d.submittedBy=state.currentUser.name;
+  saveState();
+
+  // Send one closeout_segment write per time segment (keeps payload small)
+  const allSegs=[...state.techSegments,...state.supSegments].filter(s=>s.jobId===job.id);
+  allSegs.forEach(function(s,i){
+    const key=s.employeeId+'_'+i;
+    const seg=Object.assign({},s,{
+      isSupervisor: !!(d.supBilling&&d.supBilling[key]),
+      afterHours:   !!(d.afterHours),
+    });
+    queueWrite({type:'closeout_segment',jobId:job.id,jobName:job.name,data:seg});
+  });
+
+  // Send equipment/milestones/PPE/vehicles as a separate write
+  const jobObj=state.jobs.find(function(j){return j.id===job.id;});
+  queueWrite({type:'closeout_meta',jobId:job.id,jobName:job.name,data:{
+    equipment:         d.equipment,
+    milestones:        d.milestones,
+    ppeGloves:         d.ppeGloves,
+    ppeMasks:          d.ppeMasks,
+    ppeTyvek:          d.ppeTyvek,
+    vehicles:          d.vehicles,
+    notes:             d.notes,
+    afterHours:        d.afterHours,
+    milestoneComplete: !!(d.milestoneComplete),
+    jobGroup:          jobObj ? jobObj.group : null,
+    submittedBy:       state.currentUser.name,
+    localDate:         new Date().toLocaleDateString('en-CA'),
+  }});
+
+  // Reset closeout state for this job so it can be submitted again tomorrow
+  state.closeoutData[job.id]={equipment:{},milestones:{},ppeGloves:0,ppeMasks:0,ppeTyvek:0,
+    storageVaults:0,vehicles:[],notes:'',submitted:false,afterHours:false,supBilling:{},milestoneComplete:false};
+  state.techSegments=state.techSegments.filter(s=>s.jobId!==job.id);
+  state.supSegments=state.supSegments.filter(s=>s.jobId!==job.id);
+  saveState();
+
+  showToast('Closeout submitted!');
+  setTimeout(()=>{showScreen('screen-supervisor');renderSupervisorJobs(state.jobs);},1200);
+}
+
+// MORNING REPORT
+function openMorningReport(jobId){
+  const job=state.jobs.find(j=>j.id===jobId);
+  state.activeMorningJob=job;
+  if(!state.morningData[jobId])state.morningData[jobId]={vehicles:[],notes:'',submitted:false};
+  document.getElementById('morning-date').value=state.selectedDate||new Date().toISOString().substring(0,10);
+  document.getElementById('morning-job-title').textContent=job.name;
+  document.getElementById('morning-job-sub').textContent=job.adjuster+' - '+job.carrier;
+  document.getElementById('morning-notes').value=state.morningData[jobId].notes||'';
+  renderMorningVehicles(jobId);
+  showScreen('screen-morning');
+}
+
+function renderMorningVehicles(jobId){
+  const veh=state.morningData[jobId]&&state.morningData[jobId].vehicles||[];
+  const list=document.getElementById('morning-vehicles-list');
+  if(!veh.length){list.innerHTML='<div style="color:var(--ink-soft);font-size:13px;padding:4px 0">No vehicles added yet</div>';return;}
+  list.innerHTML=veh.map(v=>'<div class="vehicle-card"><div class="vehicle-header">'+v.type+'</div><div style="font-size:13px;color:var(--gray-600)">Start: '+v.odoStart.toLocaleString()+' mi</div></div>').join('');
+}
+
+function addMorningVehicle(){
+  const type=document.getElementById('morning-vehicle-type').value;
+  const odoStart=parseInt(document.getElementById('morning-vehicle-odo').value);
+  if(!odoStart){showToast('Please enter starting odometer');return;}
+  const jobId=state.activeMorningJob&&state.activeMorningJob.id;
+  state.morningData[jobId].vehicles.push({type,odoStart,odoEnd:null,addedAt:new Date().toISOString()});
+  if(!state.closeoutData[jobId])state.closeoutData[jobId]={equipment:{},milestones:{},ppeGloves:0,ppeMasks:0,ppeTyvek:0,storageVaults:0,vehicles:[],notes:'',submitted:false,afterHours:false,supBilling:{},milestoneComplete:false};
+  if(!state.closeoutData[jobId].vehicles)state.closeoutData[jobId].vehicles=[];
+  state.closeoutData[jobId].vehicles.push({type,odoStart,odoEnd:null});
+  saveState();renderMorningVehicles(jobId);closeModal('modal-morning-vehicle');
+  document.getElementById('morning-vehicle-odo').value='';
+  showToast(type+' added');
+}
+
+function submitMorningReport(){
+  const job=state.activeMorningJob;
+  const d=state.morningData[job.id];
+  d.notes=document.getElementById('morning-notes').value;
+  d.submitted=true;d.submittedAt=new Date().toISOString();d.submittedBy=state.currentUser.name;
+  saveState();
+  // Read vehicles from closeoutData where they are confirmed stored
+  const closeout=state.closeoutData[job.id]||{};
+  const payload={
+    vehicles:(closeout.vehicles||[]).map(function(v){return {type:v.type,odoStart:v.odoStart};}),
+    notes:d.notes||'',
+    localDate:new Date().toLocaleDateString('en-CA'),
+  };
+  queueWrite({type:'morning_report',jobId:job.id,jobName:job.name,data:payload});
+  showToast('Morning report submitted!');
+  setTimeout(()=>{showScreen('screen-supervisor');renderSupervisorJobs(state.jobs);},1200);
+}
+
+// VAULT REPORT
+function openVaultReport(jobId){
+  const job=state.jobs.find(j=>j.id===jobId);
+  state.activeVaultJob=job;
+  if(!state.vaultData[jobId])state.vaultData[jobId]={vaultCount:0,initialMonths:0,notes:'',submitted:false};
+  document.getElementById('vault-job-title').textContent=job.name;
+  document.getElementById('vault-job-sub').textContent=job.adjuster+' - '+job.carrier;
+  document.getElementById('vault-count').value=state.vaultData[jobId].vaultCount||'';
+  document.getElementById('vault-notes').value=state.vaultData[jobId].notes||'';
+  showScreen('screen-vault');
+}
+
+function submitVaultReport(){
+  const job=state.activeVaultJob;
+  const d=state.vaultData[job.id];
+  d.vaultCount=parseInt(document.getElementById('vault-count').value)||0;
+  d.initialMonths=parseInt(document.getElementById('vault-initial-months').value)||0;
+  d.notes=document.getElementById('vault-notes').value;
+  d.submitted=true;d.submittedAt=new Date().toISOString();d.submittedBy=state.currentUser.name;
+  saveState();queueWrite({type:'vault_report',jobId:job.id,jobName:job.name,data:d});
+  showToast('Vault report submitted!');
+  setTimeout(()=>{showScreen('screen-supervisor');renderSupervisorJobs(state.jobs);},1200);
+}
+
+// UTILITIES
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);}
+function openModal(id){document.getElementById(id).classList.add('active');}
+function closeModal(id){document.getElementById(id).classList.remove('active');}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+function formatTime(d){return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});}
+function formatDuration(ms){const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');}
+function formatHours(h){if(!h)return '0:00';const hrs=Math.floor(h),mins=Math.round((h-hrs)*60);return hrs+':'+String(mins).padStart(2,'0');}
+function calcHours(a,b){return(new Date(b)-new Date(a))/3600000;}
+
+async function init(){loadState();state.syncQueue=[];saveState();await fetchEmployees();await fetchJobs();if(!navigator.onLine)showSyncBanner('offline','Offline - saved locally');}
+init();
+
+</script>
+</body>
+</html>
