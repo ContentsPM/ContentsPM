@@ -219,6 +219,7 @@
   .count-btn { width:34px; height:34px; border-radius:50%; border:1.5px solid var(--border); background:white; font-size:20px; color:var(--teal); cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:700; transition:all 0.1s; }
   .count-btn:active { background:var(--teal); color:white; border-color:var(--teal); }
   .count-disp { font-size:17px; font-weight:700; color:var(--ink); min-width:26px; text-align:center; }
+  .ppe-num-input { width:78px; text-align:center; font-size:17px; font-weight:700; padding:9px 6px; border:1.5px solid var(--border); border-radius:var(--radius-sm); background:white; color:var(--ink); }
 
   /* ── MILESTONES ── */
   .milestone-row { display:flex; align-items:center; padding:10px 0; border-bottom:1px solid var(--surface-2); gap:10px; }
@@ -471,27 +472,15 @@
       <div class="card-title">&#129380; PPE Used</div>
       <div class="equip-item">
         <span class="equip-name">Gloves (pairs)</span>
-        <div class="equip-count">
-          <button class="count-btn" onclick="adjustCount('ppe-gloves',-1)">-</button>
-          <span class="count-disp" id="ppe-gloves">0</span>
-          <button class="count-btn" onclick="adjustCount('ppe-gloves',1)">+</button>
-        </div>
+        <input type="number" class="ppe-num-input" id="ppe-gloves" value="0" min="0" inputmode="numeric" onchange="setPpeCount('ppe-gloves',this.value)" onfocus="this.select()">
       </div>
       <div class="equip-item">
         <span class="equip-name">Masks (each)</span>
-        <div class="equip-count">
-          <button class="count-btn" onclick="adjustCount('ppe-masks',-1)">-</button>
-          <span class="count-disp" id="ppe-masks">0</span>
-          <button class="count-btn" onclick="adjustCount('ppe-masks',1)">+</button>
-        </div>
+        <input type="number" class="ppe-num-input" id="ppe-masks" value="0" min="0" inputmode="numeric" onchange="setPpeCount('ppe-masks',this.value)" onfocus="this.select()">
       </div>
       <div class="equip-item">
         <span class="equip-name">Tyvek Suits (each)</span>
-        <div class="equip-count">
-          <button class="count-btn" onclick="adjustCount('ppe-tyvek',-1)">-</button>
-          <span class="count-disp" id="ppe-tyvek">0</span>
-          <button class="count-btn" onclick="adjustCount('ppe-tyvek',1)">+</button>
-        </div>
+        <input type="number" class="ppe-num-input" id="ppe-tyvek" value="0" min="0" inputmode="numeric" onchange="setPpeCount('ppe-tyvek',this.value)" onfocus="this.select()">
       </div>
     </div>
     <div class="card" id="odometer-card">
@@ -696,65 +685,88 @@ function saveState() {
 }
 
 let appReady = false;
+let syncInFlight = false;
+let syncRerunNeeded = false;
+const MAX_SYNC_ATTEMPTS = 3;
 window.addEventListener('online',()=>{state.isOnline=true;showSyncBanner('syncing','Syncing...');if(appReady)processSyncQueue();});
 window.addEventListener('offline',()=>{state.isOnline=false;showSyncBanner('offline','Offline - saved locally');});
 function showSyncBanner(type,msg){const b=document.getElementById('sync-banner');b.className=type;b.textContent=msg;if(type==='synced')setTimeout(()=>{b.className='';b.textContent='';},3000);}
+function makeWriteId(){return Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);}
 function queueWrite(p) {
   // Attach rate data to clockout entries so proxy can write to Time Tracking
   if (p.type === 'clockout' && state.currentUser) {
     const rates = getCurrentUserRates();
     p.data = { ...p.data, ...rates };
   }
-  state.syncQueue.push({ ...p, queuedAt: Date.now() });
+  state.syncQueue.push({ ...p, queuedAt: Date.now(), attempts: 0, writeId: makeWriteId() });
   saveState();
   if (state.isOnline) processSyncQueue();
   else showSyncBanner('offline', 'Offline - saved locally');
 }
 
+// Guarded so only one sync pass runs at a time — overlapping calls (e.g. several
+// queueWrite() calls fired back-to-back from a closeout submit) used to each grab
+// a snapshot of the whole queue and resend items that were already in flight,
+// which is what caused duplicate Time Tracking rows from a single clock in/out.
 async function processSyncQueue() {
+  if (syncInFlight) { syncRerunNeeded = true; return; }
   if (!state.syncQueue.length) { showSyncBanner('synced', 'Synced ✓'); return; }
 
-  showSyncBanner('syncing', 'Syncing...');
-  const queue = [...state.syncQueue];
-  const failed = [];
+  syncInFlight = true;
+  try {
+    showSyncBanner('syncing', 'Syncing...');
+    const queue = [...state.syncQueue];
+    const remaining = [];
 
-  for (const item of queue) {
-    try {
-      const payload = {
-        source:   'field_app',
-        type:     item.type,
-        data:     item.data     || null,
-        jobId:    item.jobId    || null,
-        jobName:  item.jobName  || null,
-        segments: item.segments || null,
-      };
+    for (const item of queue) {
+      try {
+        const payload = {
+          source:   'field_app',
+          type:     item.type,
+          data:     item.data     || null,
+          jobId:    item.jobId    || null,
+          jobName:  item.jobName  || null,
+          segments: item.segments || null,
+          writeId:  item.writeId  || null,
+        };
 
-      // Use JSONP (same as reads) to avoid CORS — Apps Script blocks cross-origin POST
-      const url = PROXY_URL
-        + '?action=write'
-        + '&payload=' + encodeURIComponent(JSON.stringify(payload));
+        // Use JSONP (same as reads) to avoid CORS — Apps Script blocks cross-origin POST
+        const url = PROXY_URL
+          + '?action=write'
+          + '&payload=' + encodeURIComponent(JSON.stringify(payload));
 
-      const result = await jsonpFetch(url);
+        const result = await jsonpFetch(url);
 
-      if (result && result.error) {
-        console.error('Proxy error for', item.type, ':', result.error);
-        failed.push(item);
-      } else {
-        console.log('Synced:', item.type, result);
+        if (result && result.error) {
+          console.error('Proxy error for', item.type, ':', result.error);
+          item.attempts = (item.attempts || 0) + 1;
+          if (item.attempts < MAX_SYNC_ATTEMPTS) remaining.push(item);
+          else console.error('Dropping after', MAX_SYNC_ATTEMPTS, 'failed attempts:', item.type, item.writeId);
+        } else {
+          console.log('Synced:', item.type, result);
+        }
+      } catch(e) {
+        console.error('Sync error for', item.type, ':', e.message);
+        item.attempts = (item.attempts || 0) + 1;
+        if (item.attempts < MAX_SYNC_ATTEMPTS) remaining.push(item);
+        else console.error('Dropping after', MAX_SYNC_ATTEMPTS, 'timeouts:', item.type, item.writeId);
       }
-    } catch(e) {
-      console.error('Sync error for', item.type, ':', e.message);
-      failed.push(item);
     }
-  }
 
-  state.syncQueue = failed;
-  saveState();
+    state.syncQueue = remaining;
+    saveState();
 
-  if (failed.length) {
-    showSyncBanner('offline', failed.length + ' item(s) pending — will retry');
-  } else {
-    showSyncBanner('synced', 'Synced ✓');
+    if (remaining.length) {
+      showSyncBanner('offline', remaining.length + ' item(s) pending — will retry');
+    } else {
+      showSyncBanner('synced', 'Synced ✓');
+    }
+  } finally {
+    syncInFlight = false;
+    if (syncRerunNeeded) {
+      syncRerunNeeded = false;
+      if (state.syncQueue.length) processSyncQueue();
+    }
   }
 }
 
@@ -1088,9 +1100,9 @@ function openCloseout(jobId){
   document.getElementById('closeout-job-sub').textContent=job.adjuster+' - '+job.carrier;
   renderCloseoutTimeEntries(jobId);renderCorrectionRequests();renderMilestones(jobId);renderEquipment(jobId);renderOdometer(jobId);renderAfterHoursToggle(jobId);
   const d=state.closeoutData[jobId];
-  document.getElementById('ppe-gloves').textContent=d.ppeGloves||0;
-  document.getElementById('ppe-masks').textContent=d.ppeMasks||0;
-  document.getElementById('ppe-tyvek').textContent=d.ppeTyvek||0;
+  document.getElementById('ppe-gloves').value=d.ppeGloves||0;
+  document.getElementById('ppe-masks').value=d.ppeMasks||0;
+  document.getElementById('ppe-tyvek').value=d.ppeTyvek||0;
 
   document.getElementById('closeout-notes').value=d.notes||'';
   showScreen('screen-closeout');
@@ -1272,6 +1284,20 @@ function adjustCount(id,delta){
     if(id==='ppe-gloves')d.ppeGloves=parseInt(el.textContent);
     if(id==='ppe-masks')d.ppeMasks=parseInt(el.textContent);
     if(id==='ppe-tyvek')d.ppeTyvek=parseInt(el.textContent);
+    saveState();
+  }
+}
+
+function setPpeCount(id,val){
+  const n=Math.max(0,parseInt(val)||0);
+  const el=document.getElementById(id);
+  el.value=n;
+  const jobId=state.activeCloseoutJob&&state.activeCloseoutJob.id;
+  if(jobId&&state.closeoutData[jobId]){
+    const d=state.closeoutData[jobId];
+    if(id==='ppe-gloves')d.ppeGloves=n;
+    if(id==='ppe-masks')d.ppeMasks=n;
+    if(id==='ppe-tyvek')d.ppeTyvek=n;
     saveState();
   }
 }
