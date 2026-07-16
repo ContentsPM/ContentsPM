@@ -1099,6 +1099,7 @@ function openCloseout(jobId){
   document.getElementById('closeout-job-title').textContent=job.name;
   document.getElementById('closeout-job-sub').textContent=job.adjuster+' - '+job.carrier;
   renderCloseoutTimeEntries(jobId);renderCorrectionRequests();renderMilestones(jobId);renderEquipment(jobId);renderOdometer(jobId);renderAfterHoursToggle(jobId);
+  syncVehiclesFromServer(jobId);
   const d=state.closeoutData[jobId];
   document.getElementById('ppe-gloves').value=d.ppeGloves||0;
   document.getElementById('ppe-masks').value=d.ppeMasks||0;
@@ -1107,6 +1108,32 @@ function openCloseout(jobId){
   document.getElementById('closeout-notes').value=d.notes||'';
   showScreen('screen-closeout');
 }
+
+async function syncVehiclesFromServer(jobId){
+  try{
+    const dateStr=new Date().toLocaleDateString('en-CA');
+    const url=PROXY_URL+'?action=getVehicles&jobId='+encodeURIComponent(jobId)+'&dateStr='+encodeURIComponent(dateStr);
+    const res=await jsonpFetch(url);
+    if(!res||!res.ok||!res.vehicles||!res.vehicles.length)return;
+    if(!state.closeoutData[jobId])return;
+    const d=state.closeoutData[jobId];
+    if(!d.vehicles)d.vehicles=[];
+    let added=false;
+    res.vehicles.forEach(function(sv){
+      const existing=d.vehicles.find(function(lv){return lv.type===sv.type && lv.odoStart===sv.odoStart;});
+      if(!existing){
+        d.vehicles.push({type:sv.type,odoStart:sv.odoStart,odoEnd:sv.odoEnd||null});
+        added=true;
+  }
+    });
+    if(added){
+      saveState();
+      if(state.activeCloseoutJob&&state.activeCloseoutJob.id===jobId)renderOdometer(jobId);
+  }
+  }catch(e){
+    console.warn('vehicle sync failed', e);
+  }
+   }
 
 function renderCloseoutTimeEntries(jobId){
   const all=[...state.techSegments,...state.supSegments].filter(s=>s.jobId===jobId);
